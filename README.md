@@ -50,3 +50,32 @@ vue-autoui 是一款基于`vue`和`element`扩展的一个自动化UI控件，�
 ```
 以上是使用`json`来描述一个输出的界面，具体效果如下:
 ![image](https://user-images.githubusercontent.com/2564178/77047737-3b8f1b00-6a00-11ea-81e9-443e43347045.png)
+虽然用`json`来描述界面会比`html`描述会方便一些，但总体上来说工作量还是有些大的，在调整界面的时候也不方便。接下介绍一下如何结合`BeetleX.FastHttpApi`来进一步简化这些繁琐的操作。
+## Webapi动态输出
+其实在构建`vue-autoui`的时候更多是考虑和`BeetleX.FastHttpApi`进行一个整合，通过和后端融合可以把这些UI编写的工作量大大节省下来，让开发这些功能变得更简单方便，`更重要的是api变化后界面就自动适应`。使用要求：在和`BeetleX.FastHttpApi`整合还需要引用`BeetleX.FastHttpApi.ApiDoc`插件，因为这个插件用于给接口输出对应UI的`JSON`信息。接下来通过几个示例来介绍整合的方便性：
+### 登陆
+登陆功能是比较常见的，接下来看一下使用`auto-form`如何结合`webapi`来完成这个功能。
+``` html
+<div>
+    <auto-form ref="login" url="/login" v-model="login.data" size="mini">
+
+    </auto-form>
+    <el-button size="mini" @click="if($refs.login.success())login.post()">
+        登陆
+    </el-button>
+</div>
+```
+以上是一个登陆功能UI的定义，是不是很简单呢？通过指定`url`的webapi连接即可以自动适全UI;这时候只需要针对登陆接口进行一个定义即可:
+``` chsarp
+        [Input(Label = "用户名", Name = "name", Eof = true)]
+        [Required("用户名不能为空", Name = "name")]
+        [Input(Label = "密码", Name = "pwd", Type = "password", Eof = true)]
+        [Required("用户密码不能为空", Name = "pwd")]
+        [Input(Label = "保存状态", Value = true, Name = "saveStatus")]
+        public bool Login(string name, string pwd, bool saveStatus)
+        {
+            Console.WriteLine($"name:{name} pwd:{pwd} saveStatus:{saveStatus}");
+            return name == "admin";
+        }
+```
+![image](https://user-images.githubusercontent.com/2564178/77049214-a2adcf00-6a02-11ea-9072-71bd51b18d7a.png)
