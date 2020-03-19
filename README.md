@@ -79,3 +79,84 @@ vue-autoui 是一款基于`vue`和`element`扩展的一个自动化UI控件，�
         }
 ```
 ![image](https://user-images.githubusercontent.com/2564178/77049214-a2adcf00-6a02-11ea-9072-71bd51b18d7a.png)
+
+## 注册
+接下来定义一个信息多些的注册界面
+``` html
+<div>
+    <auto-form ref="login" url="/register" v-model="register.data" size="mini" @completed="onCompleted">
+
+    </auto-form>
+    <el-button size="mini" @click="if($refs.login.success())register.post()">
+        注册
+    </el-button>
+</div>
+```
+在UI定义上基于没什么变化，只是调整一下对应的`url`地址，在这里多了一下`completed`事件，这个事件主要是通过接口加载UI信息才会触发的。对应功能的`javascript`代码
+``` javascript
+        data(){
+            return {
+                register: new beetlexAction('/register', {}),
+                checkConfirmPassword: (rule, value, callback) => {
+                    var password = this.$refs.login.getField('Password');
+                    var cpassword = this.$refs.login.getField('ConfirmPassword');
+                    if (password.value != cpassword.value)
+                        callback(new Error('确认密码不正确!'));
+                    else
+                        callback();
+                },
+            }
+        },
+        methods: {
+            onCompleted(){
+                this.$refs.login.getField('ConfirmPassword').rules.push({ validator: this.checkConfirmPassword, trigger: 'blur' });
+            },
+        },
+        mounted() {
+
+            this.register.requested = (r) => {
+                alert(JSON.stringify(r));
+            };
+        }
+```
+代码主要是定密码和确认密码的对比验证，接下来看一下后台注册对应的接口
+``` csharp
+    [Post]
+    public RegisterDto Register(RegisterDto register)
+    {
+            Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(register));
+            return register;
+    }
+    public class RegisterDto
+    {
+        [Input(Label = "用户名", Eof = true)]
+        [Required("用户名不能为空")]
+        [DataRange("用户名的必须大于3个字符", Min = 3)]
+        public string Name { get; set; }
+
+        [Input(Label = "邮箱地址", Eof = true)]
+        [Required("邮件地址无效", Type = "email")]
+        public string Email { get; set; }
+
+        [Input(Label = "密码", Eof = true, Type = "password")]
+        [Required("输入密码")]
+        public string Password { get; set; }
+
+        [Input(Label = "确认密码", Eof = true, Type = "password")]
+        [Required("输入确认密码")]
+        public string ConfirmPassword { get; set; }
+
+        [GenderInput(Label = "性别", Value = "男", Eof = true)]
+        public string Gender { get; set; }
+
+        [Required("选择所在城市")]
+        [CityInput(Label = "城市", Eof = true)]
+        public string City { get; set; }
+
+        [HobbyInput(Label = "爱好")]
+        [Required("选择爱好", Type = "array", Trigger = "change")]
+        public string[] Hobby { get; set; }
+    }
+```
+服务代码也没太多的变化，只是通过一些标签来标记一下相关属性的数据源和输入要求.具体运行效果如下:
+![image](https://user-images.githubusercontent.com/2564178/77050037-156b7a00-6a04-11ea-8fda-ea9681ecc7a1.png)
