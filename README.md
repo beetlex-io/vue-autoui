@@ -160,3 +160,114 @@ vue-autoui 是一款基于`vue`和`element`扩展的一个自动化UI控件，�
 ```
 服务代码也没太多的变化，只是通过一些标签来标记一下相关属性的数据源和输入要求.具体运行效果如下:
 ![image](https://user-images.githubusercontent.com/2564178/77050037-156b7a00-6a04-11ea-8fda-ea9681ecc7a1.png)
+
+## 数据列表
+有应用中除了数据输出外更多的数据列表，`auto-grid`即是专门用于处理列表的一个控件，这个控件提供分页，选择，编辑和删除的功能；接下来做一个简单的雇员列表示例:
+``` html
+<auto-grid url="/employees" @completed="employees.get()"
+           @itemchange="onItemChange" 
+           @itemdelete="onItemDelete"
+           @command="onCommand"
+           :data="employees.result" 
+           size="mini" height="100%" 
+           edit="true" delete="true">
+</auto-grid>
+```
+这个列表提供编辑和删除功能，相关脚代码如下:
+``` javascript
+        data(){
+            return {
+                employees: new beetlexAction('/employees', {}, [])
+            }
+        },
+        methods: {
+            onCommand(e){
+                this.$open('models-employee', e.data);
+            },
+            onItemChange(item){
+                if (confirm('是否要修改' + item.data.FirstName + '?')) {
+                    item.success();
+                }
+            },
+            onItemDelete(item){
+                if (confirm('是否要删除' + item.data.FirstName + '?')) {
+                    item.success();
+                }
+            },
+        },
+        mounted() {
+
+        }
+```
+接下来的工作就是在服务端定义`api`来输出结果
+``` csharp
+        [Column("FirstName", Type = "link")]
+        [Column("LastName", Read = true)]
+        [Column("Title")]
+        [Column("HomePhone")]
+        [Column("City")]
+        [Column("Address")]
+        public object Employees()
+        {
+            return DataHelper.Defalut.Employees;
+        }
+```
+![image](https://user-images.githubusercontent.com/2564178/77050615-fcaf9400-6a04-11ea-9bf5-f06bb58c279c.png)
+
+## 动态查询
+实际应用中需要提供查询条件输入，这个时候就可以把`auto-form`和`auto-grid`整合起来，以下通过一个简单的订单查询来展示这两个控件给合使用
+``` html
+    <auto-form url="/orders" v-model="orders.data" @completed="orders.get()" size="mini" @fieldchange="orders.get()">
+
+    </auto-form>
+    <auto-grid url="/orders" height="300" :data="orders.result.items" :pages="orders.result.pages" :currentpage="orders.result.index" @pagechange="onPageChange" size="mini">
+
+    </auto-grid>
+```
+可以在`auto-form`的`fieldchange`事件中自动执行查询,对应的脚本代码如下:
+``` javascript
+        data(){
+            return {
+                orders: new beetlexAction("/orders", {}, { index: 0, pages: 0, items: [] })
+            };
+        },
+        methods: {
+            onPageChange(page){
+                this.orders.data.index = page;
+                this.orders.get();
+            },
+        },
+        mounted(){
+
+        }
+```
+接下来需要实现服务端代码，由于方法需要描述输入和列表所以对应的标签比较多
+``` csharp
+        [Input(Name = "id", Type = "select", DataUrl = "/EmployeeSelecter", Label = "雇员",NullOption =true)]
+        [Input(Name = "customerid", Type = "select", DataUrl = "/CustomerSelecter", Label = "客户",NullOption =true,  Eof = true)]
+        [SizeInput(Name = "size", Label = "分页记录数")]
+        [Input(Name = "index", Hide = true)]
+
+        [Column("OrderID", Read = true)]
+        [Column("EmployeeID", Type = "select", DataUrl = "/EmployeeSelecter")]
+        [Column("CustomerID", Type = "select", DataUrl = "/CustomerSelecter")]
+        [Column("OrderDate", Type = "date")]
+        [Column("RequiredDate", Type = "date")]
+        [Column("ShippedDate", Type = "date")]
+        public object Orders(int id, string customerid, int index, int size, IHttpContext context)
+        {
+            Func<Order, bool> exp = o => (id == 0 || o.EmployeeID == id)
+             && (string.IsNullOrEmpty(customerid) || o.CustomerID == customerid);
+            int count = DataHelper.Defalut.Orders.Count(exp);
+            if (size == 0)
+                size = 20;
+            int pages = count / size;
+            if (count % size > 0)
+                pages++;
+            var items = DataHelper.Defalut.Orders.Where(exp).Skip(index * size).Take(size);
+            return new { pages, index, items };
+
+        }
+```
+![image](https://user-images.githubusercontent.com/2564178/77051438-3df47380-6a06-11ea-9660-4009485df9dd.png)
+
