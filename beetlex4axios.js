@@ -38,6 +38,8 @@ function beetlexWebSocket() {
     }
     this.websocket;
     this.status = false;
+    this.disconnect = null;
+    this.connected = null;
     this.messagHandlers = new Object();
     this.timeout = 2000;
     this.receive = null;
@@ -56,14 +58,18 @@ beetlexWebSocket.prototype.send = function (url, params, callback) {
 
 beetlexWebSocket.prototype.onOpen = function (evt) {
     this.status = true;
+    if (this.connected)
+        this.connected();
 }
 
 beetlexWebSocket.prototype.onClose = function (evt) {
     this.status = false;
     var _this = this;
+    if (this.disconnect)
+        this.disconnect();
     if (evt.code == 1006) {
         setTimeout(function () {
-            _this.Connect();
+            _this.connect();
         }, _this.timeout);
         if (_this.timeout < 10000)
             _this.timeout += 1000;
@@ -77,11 +83,11 @@ beetlexWebSocket.prototype.onMessage = function (evt) {
     if (callback)
         callback(msg);
     else
-        if (this.callback) {
-            if (msg.Data != null && msg.Data != undefined)
-                this.receive(msg.Data);
-            else
+        if (this.receive) {
+            if (msg.Data === undefined)
                 this.receive(msg);
+            else
+                this.receive(msg.Data);
         }
 }
 
@@ -93,16 +99,19 @@ beetlexWebSocket.prototype.onError = function (evt) {
 }
 
 beetlexWebSocket.prototype.connect = function () {
-    this.websocket = new WebSocket(this.wsUri);
-    _this = this;
-    this.websocket.onopen = function (evt) { _this.onOpen(evt) };
-    this.websocket.onclose = function (evt) { _this.onClose(evt) };
-    this.websocket.onmessage = function (evt) { _this.onMessage(evt) };
-    this.websocket.onerror = function (evt) { _this.onError(evt) };
+    if (this.status == false) {
+        this.websocket = new WebSocket(this.wsUri);
+        _this = this;
+        this.websocket.onopen = function (evt) { _this.onOpen(evt) };
+        this.websocket.onclose = function (evt) { _this.onClose(evt) };
+        this.websocket.onmessage = function (evt) { _this.onMessage(evt) };
+        this.websocket.onerror = function (evt) { _this.onError(evt) };
+    }
 }
 
 function beetlex4axios() {
-    this._requestid = 1;
+    this._requestid = new Date().getTime();
+    this._maxrequestid = this._requestid +5000;
     this.errorHandlers = new Object();
     this.websocket = new beetlexWebSocket();
     this.loading = 0;
@@ -126,8 +135,9 @@ beetlex4axios.prototype.SetErrorHandler = function (code, callback) {
 beetlex4axios.prototype.getRequestID = function () {
 
     this._requestid++;
-    if (this._requestid > 2000) {
-        this._requestid = 1;
+    if (this._requestid > this._maxrequestid) {
+        this._requestid = new Date().getTime();
+        this._maxrequestid = this._requestid + 5000;
     }
 
     return this._requestid;
@@ -147,20 +157,24 @@ beetlex4axios.prototype.get = function (handler, url, params, callback) {
     var _this = this;
     this.loading++;
     params['_requestid'] = this.getRequestID();
-    if (this.websocket.status == true) {
+    if (this.websocket.status == true && handler.http == false) {
         var wscallback = function (r) {
             _this.completed();
             handler.loading = false;
-            var data = r.Data;
+            var data = r;
             if (data.Code && data.Code != 200) {
                 _this.onError(data.Code, data.Error);
+                if (handler.error) {
+                    handler.error({ code: data.Code, error: data.Error });
+                    handler.error = null;
+                }
             }
             else {
                 if (callback) {
-                    if (data.Data != null && data.Data != undefined)
-                        callback(data.Data);
-                    else
+                    if (data.Data === undefined)
                         callback(data);
+                    else
+                        callback(data.Data);
                 }
             }
         };
@@ -174,13 +188,17 @@ beetlex4axios.prototype.get = function (handler, url, params, callback) {
                 var data = response.data;
                 if (data.Code && data.Code != 200) {
                     _this.onError(data.Code, data.Error);
+                    if (handler.error) {
+                        handler.error({ code: data.Code, error: data.Error });
+                        handler.error = null;
+                    }
                 }
                 else {
                     if (callback) {
-                        if (data.Data != null && data.Data != undefined)
-                            callback(data.Data);
-                        else
+                        if (data.Data === undefined)
                             callback(data);
+                        else
+                            callback(data.Data);
                     }
                 }
             })
@@ -192,6 +210,10 @@ beetlex4axios.prototype.get = function (handler, url, params, callback) {
                 if (error.response)
                     message = error.response.data;
                 _this.onError(code, message);
+                if (handler.error) {
+                    handler.error({ code: code, error: message });
+                    handler.error = null;
+                }
             });
     }
 };
@@ -217,20 +239,24 @@ beetlex4axios.prototype.post = function (handler, url, params, callback) {
     var _this = this;
     params['_requestid'] = id;
     this.loading++;
-    if (this.websocket.status == true) {
+    if (this.websocket.status == true && handler.http == false) {
         var wscallback = function (r) {
             _this.completed();
             handler.loading = false;
             var data = r;
             if (data.Code && data.Code != 200) {
                 _this.onError(data.Code, data.Error);
+                if (handler.error) {
+                    handler.error({ code: data.Code, error: data.Error });
+                    handler.error = null;
+                }
             }
             else {
                 if (callback) {
-                    if (data.Data != null && data.Data != undefined)
-                        callback(data.Data);
-                    else
+                    if (data.Data === undefined)
                         callback(data);
+                    else
+                        callback(data.Data);
                 }
             }
         };
@@ -244,13 +270,17 @@ beetlex4axios.prototype.post = function (handler, url, params, callback) {
                 var data = response.data;
                 if (data.Code && data.Code != 200) {
                     _this.onError(data.Code, data.Error);
+                    if (handler.error) {
+                        handler.error({ code: data.Code, error: data.Error });
+                        handler.error = null;
+                    }
                 }
                 else {
                     if (callback) {
-                        if (data.Data != null && data.Data != undefined)
-                            callback(data.Data);
-                        else
+                        if (data.Data === undefined)
                             callback(data);
+                        else
+                            callback(data.Data);
                     }
                 }
             })
@@ -262,6 +292,10 @@ beetlex4axios.prototype.post = function (handler, url, params, callback) {
                 if (error.response)
                     message = error.response.data;
                 _this.onError(code, message);
+                if (handler.error) {
+                    handler.error({ code: code, error: message });
+                    handler.error = null;
+                }
             });
     }
 };
@@ -275,6 +309,14 @@ function beetlexAction(actionUrl, actionData, defaultResult) {
     this.requesting = null;
     this.requested = null;
     this.loading = false;
+    this.http = false;
+    this.token = null;
+    this.error = null;
+}
+
+beetlexAction.prototype.userHttp = function () {
+    this.http = true;
+    return this;
 }
 
 beetlexAction.prototype.onCallback = function (data) {
@@ -286,6 +328,15 @@ beetlexAction.prototype.onValidate = function (data) {
     if (this.requesting)
         return this.requesting(data);
     return true;
+}
+
+beetlexAction.prototype.asyncget = function (data) {
+    var result = new Promise((resolve,error) => {
+        this.requested = resolve;
+        this.error = error;
+        this.get(data);
+    });
+    return result;
 }
 
 beetlexAction.prototype.get = function (data) {
@@ -301,6 +352,15 @@ beetlexAction.prototype.get = function (data) {
         _this.onCallback(r);
     });
 };
+
+beetlexAction.prototype.asyncpost = function (data) {
+    var result = new Promise((resolve,error) => {
+        this.requested = resolve;
+        this.error = error;
+        this.post(data);
+    });
+    return result;
+}
 
 beetlexAction.prototype.post = function (data) {
     var _this = this;
